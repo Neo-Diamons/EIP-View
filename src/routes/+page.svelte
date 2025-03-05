@@ -29,10 +29,12 @@
 		ChevronDown,
 		Check,
 		Loader,
-		X
+		X,
+		BadgeAlert
 	} from "lucide-svelte";
 
 	let projects = $state<Project[]>([]);
+	let projectsRequestError = $state<string | null>(null);
 	let cities = $derived.by(() => {
 		const cities = projects.map((project) => project.ownerCity.name);
 		return Array.from(new Set(cities)).sort();
@@ -59,7 +61,10 @@
 	async function fetchProjects(bearer: string, filteredYear: string) {
 		if (!bearer) return;
 		loadingProjects = true;
-		const response = await fetch(
+		projectsRequestError = null;
+		projects = [];
+
+		await fetch(
 			"https://eip.epitech.eu/api/projects" +
 				`?scholar_year=${filteredYear}` +
 				"&user_projects=false" +
@@ -72,13 +77,30 @@
 					authorization: `Bearer ${bearer}`
 				}
 			}
-		);
-		const data = await response.json();
-
-		if (Array.isArray(data.results)) {
-			projects = data.results;
-		}
-		loadingProjects = false;
+		)
+			.then((response) => {
+				console.log(response.status);
+				if (response.status === 401) {
+					projectsRequestError = "Invalid token";
+					throw new Error("Invalid token");
+				}
+				if (!response.ok) {
+					projectsRequestError = "An error occurred";
+					throw new Error("An error occurred");
+				}
+				return response.json();
+			})
+			.then((data) => {
+				if (Array.isArray(data.results)) {
+					projects = data.results;
+				}
+			})
+			.catch((error) => {
+				console.error(error);
+			})
+			.finally(() => {
+				loadingProjects = false;
+			});
 	}
 
 	async function fetchLogo(id: number) {
@@ -213,8 +235,13 @@
 			<Skeleton class="hidden h-95 w-full xl:block" />
 			<Skeleton class="hidden h-95 w-full xl:block" />
 		</div>
+	{:else if projectsRequestError}
+		<div class="flex h-[80vh] flex-row items-center justify-center gap-2">
+			<BadgeAlert class="size-4" />
+			<p class="text-center">{projectsRequestError}</p>
+		</div>
 	{:else if projects.length === 0}
-		<div class="flex h-[80vh] flex-col items-center justify-center gap-4">
+		<div class="flex h-[80vh] items-center justify-center">
 			<p class="text-center">No projects found</p>
 		</div>
 	{:else}
