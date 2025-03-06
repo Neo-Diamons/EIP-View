@@ -32,7 +32,9 @@
 		Loader,
 		X,
 		BadgeAlert,
-		ArrowDownWideNarrow
+		ArrowDownWideNarrow,
+		AlignLeft,
+		Clock
 	} from "lucide-svelte";
 
 	const sorting = ["Release date", "Views", "Likes", "Mark", "Name"];
@@ -40,6 +42,7 @@
 
 	let projects = $state<Project[]>([]);
 	let projectsRequestError = $state<string | null>(null);
+	let lastUpdate = $state<Date | null>(null);
 	let cities = $derived.by(() => {
 		const cities = projects.map((project) => project.ownerCity.name);
 		return Array.from(new Set(cities)).sort();
@@ -52,6 +55,9 @@
 	let filteredCities = $state<string[]>([]);
 	let isSortDescending = $state(true);
 	let sortType = $state<SortingType>("Release date");
+	let sortedProjects = $derived.by(() =>
+		sortProjects(filterProjects(projects, filteredName, filteredStatus), sortType, isSortDescending)
+	);
 
 	function filterProjects(projects: Project[], filteredName: string, filteredStatus: string[]) {
 		return projects.filter((project) => {
@@ -89,8 +95,9 @@
 	async function fetchProjects(bearer: string, filteredYear: string) {
 		if (!bearer) return;
 		loadingProjects = true;
-		projectsRequestError = null;
 		projects = [];
+		projectsRequestError = null;
+		lastUpdate = null;
 
 		await fetch(
 			"https://eip.epitech.eu/api/projects" +
@@ -107,7 +114,6 @@
 			}
 		)
 			.then((response) => {
-				console.log(response.status);
 				if (response.status === 401) {
 					projectsRequestError = "Invalid token";
 					throw new Error("Invalid token");
@@ -116,6 +122,7 @@
 					projectsRequestError = "An error occurred";
 					throw new Error("An error occurred");
 				}
+				lastUpdate = new Date();
 				return response.json();
 			})
 			.then((data) => {
@@ -290,6 +297,10 @@
 	</div>
 
 	{#if loadingProjects}
+		<div class="flex justify-between">
+			<Skeleton class="h-5 w-40" />
+			<Skeleton class="h-5 w-40" />
+		</div>
 		<div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
 			<Skeleton class="h-95 w-full" />
 			<Skeleton class="h-95 w-full" />
@@ -308,8 +319,25 @@
 			<p class="text-center">No projects found</p>
 		</div>
 	{:else}
+		<div class="flex justify-between">
+			<div class="flex items-center gap-2">
+				<AlignLeft class="size-4" />
+				<p>Total projects: {sortedProjects.length}</p>
+			</div>
+			<div class="flex items-center gap-2">
+				<Clock class="size-4" />
+				<p>
+					Last update:
+					{#if lastUpdate}
+						{lastUpdate.getHours()}h{lastUpdate.getMinutes()}
+					{:else}
+						<Skeleton class="h-5 w-20" />
+					{/if}
+				</p>
+			</div>
+		</div>
 		<div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-			{#each sortProjects(filterProjects(projects, filteredName, filteredStatus), sortType, isSortDescending) as project (project.id)}
+			{#each sortedProjects as project (project.id)}
 				<Card.Root>
 					<Card.Header class="flex flex-row items-start justify-between gap-4">
 						<div class="flex flex-row items-center gap-2 overflow-hidden">
