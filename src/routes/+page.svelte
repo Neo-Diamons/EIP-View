@@ -10,6 +10,7 @@
 	import { Checkbox } from "$lib/components/ui/checkbox/index.js";
 	import { Label } from "$lib/components/ui/label/index.js";
 	import { ScrollArea } from "$lib/components/ui/scroll-area/index.js";
+	import * as RadioGroup from "$lib/components/ui/radio-group/index.js";
 	import { Skeleton } from "$lib/components/ui/skeleton";
 	import * as Card from "$lib/components/ui/card/index.js";
 	import { Badge } from "$lib/components/ui/badge/index.js";
@@ -30,8 +31,12 @@
 		Check,
 		Loader,
 		X,
-		BadgeAlert
+		BadgeAlert,
+		ArrowDownWideNarrow
 	} from "lucide-svelte";
+
+	const sorting = ["Release date", "Views", "Likes", "Mark", "Name"];
+	type SortingType = (typeof sorting)[number];
 
 	let projects = $state<Project[]>([]);
 	let projectsRequestError = $state<string | null>(null);
@@ -45,6 +50,8 @@
 	let filteredStatus = $state<string[]>([]);
 	let filteredTypes = $state<string[]>([]);
 	let filteredCities = $state<string[]>([]);
+	let isSortDescending = $state(true);
+	let sortType = $state<SortingType>("Release date");
 
 	function filterProjects(projects: Project[], filteredName: string, filteredStatus: string[]) {
 		return projects.filter((project) => {
@@ -55,6 +62,27 @@
 				filteredCities.length === 0 || filteredCities.includes(project.ownerCity.name);
 
 			return nameValid && statusValid && typeValid && cityValid;
+		});
+	}
+
+	function sortProjects(projects: Project[], sortType: SortingType, isSortDescending: boolean) {
+		return projects.sort((a, b) => {
+			switch (sortType) {
+				case "Release date":
+					return isSortDescending
+						? new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+						: new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+				case "Views":
+					return isSortDescending ? b.totalViews - a.totalViews : a.totalViews - b.totalViews;
+				case "Likes":
+					return isSortDescending ? b.totalStars - a.totalStars : a.totalStars - b.totalStars;
+				case "Mark":
+					return isSortDescending ? b.averageMark - a.averageMark : a.averageMark - b.averageMark;
+				case "Name":
+					return isSortDescending ? b.name.localeCompare(a.name) : a.name.localeCompare(b.name);
+				default:
+					throw new Error("Invalid sorting type");
+			}
 		});
 	}
 
@@ -224,6 +252,41 @@
 				</ScrollArea>
 			</Popover.Content>
 		</Popover.Root>
+		<Popover.Root>
+			<Popover.Trigger class={buttonVariants({ variant: "outline" })}>
+				<ArrowDownWideNarrow class="size-4" />
+				Sort by
+				<ChevronDown class="size-4 opacity-50" />
+			</Popover.Trigger>
+			<Popover.Content class="flex flex-col gap-4">
+				<Label for="isSortDescending">Order</Label>
+				<RadioGroup.Root
+					value="desc"
+					onValueChange={(value) => (isSortDescending = value === "desc")}
+				>
+					<div class="flex items-center space-x-2">
+						<RadioGroup.Item value="desc" id="r1" />
+						<Label for="r1">Descending</Label>
+					</div>
+					<div class="flex items-center space-x-2">
+						<RadioGroup.Item value="asc" id="r2" />
+						<Label for="r2">Ascending</Label>
+					</div>
+				</RadioGroup.Root>
+				<Label for="sortType">Sort</Label>
+				<RadioGroup.Root
+					value="Release date"
+					onValueChange={(value) => (sortType = value as SortingType)}
+				>
+					{#each sorting as sort (sort)}
+						<div class="flex items-center space-x-2">
+							<RadioGroup.Item value={sort} id={sort} />
+							<Label for={sort}>{sort}</Label>
+						</div>
+					{/each}
+				</RadioGroup.Root>
+			</Popover.Content>
+		</Popover.Root>
 	</div>
 
 	{#if loadingProjects}
@@ -246,7 +309,7 @@
 		</div>
 	{:else}
 		<div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-			{#each filterProjects(projects, filteredName, filteredStatus) as project (project.id)}
+			{#each sortProjects(filterProjects(projects, filteredName, filteredStatus), sortType, isSortDescending) as project (project.id)}
 				<Card.Root>
 					<Card.Header class="flex flex-row items-start justify-between gap-4">
 						<div class="flex flex-row items-center gap-2 overflow-hidden">
